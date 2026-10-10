@@ -171,7 +171,11 @@ lightning_logs/
 catboost_info/
 
 # Local data, experiment artifacts and credentials
-dataset/
+dataset/*
+!dataset/PVOD/
+dataset/PVOD/*
+!dataset/PVOD/station00.csv
+!dataset/PVOD/README.md
 outputs/
 .env.*
 !.env.example

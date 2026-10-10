@@ -9,7 +9,8 @@ final      : final forecast analysis report (task 4). Inputs: top-k test
              metrics, ensemble results, AutoARIMA baseline, per-lead errors,
              and a numeric digest of the plotted test windows.
 
-The LLM is the local vLLM server (OpenAI-compatible API). Output is markdown.
+Supports local vLLM and remote OpenAI-compatible APIs via environment variables.
+Output is markdown.
 
 Usage:
     python scripts/llm_reports.py --mode experience
@@ -18,11 +19,22 @@ Usage:
 
 import argparse
 import json
+import os
 import time
 import urllib.request
 from pathlib import Path
 
-BASE_URL = "http://localhost:8000/v1"
+BASE_URL = os.environ.get("OPENAI_BASE_URL", "http://localhost:8000/v1").rstrip("/")
+API_KEY = os.environ.get("OPENAI_API_KEY", "")
+MODEL_ID = os.environ.get("EE_REPORT_MODEL", "")
+
+
+def api_headers():
+    headers = {"Content-Type": "application/json"}
+    if API_KEY:
+        headers["Authorization"] = f"Bearer {API_KEY}"
+    return headers
+
 
 EXPERIENCE_SYSTEM = """你是一位资深的电力负荷/光伏功率预测算法工程师，负责审阅时间序列预测实验的训练日志并沉淀经验。
 你会收到一份 JSON 格式的实验日志，包含：数据集信息、数据划分边界、每个候选模型在训练段内调参选出的最优超参数、内层交叉验证得分、验证集评测指标（MAE/RMSE/MASE）、top-k 入选名单与集成权重。
@@ -100,7 +112,7 @@ def chat(messages, max_tokens=6000, retries=3):
             }).encode()
             request = urllib.request.Request(
                 f"{BASE_URL}/chat/completions", data=body,
-                headers={"Content-Type": "application/json"},
+                headers=api_headers(),
             )
             with urllib.request.urlopen(request, timeout=600) as response:
                 return json.load(response)["choices"][0]["message"]["content"]
@@ -260,15 +272,12 @@ def main():
     args = parser.parse_args()
 
     global MODEL_ID
-    with urllib.request.urlopen(f"{BASE_URL}/models", timeout=30) as response:
-        MODEL_ID = json.load(response)["data"][0]["id"]
+    if not MODEL_ID:
+        request = urllib.request.Request(f"{BASE_URL}/models", headers=api_headers())
+        with urllib.request.urlopen(request, timeout=30) as response:
+            MODEL_ID = json.load(response)["data"][0]["id"]
 
     log = json.loads(Path(args.log).read_text())
-    payload = json.dumps(compact_round(build_payload(log, args.mode)),
-                         ensure_ascii=False, indent=1)
-    print(f"mode={args.mode} model={MODEL_ID} payload={len(payload)} chars",
-          flush=True)
-
     if args.mode == "experience":
         system, template = EXPERIENCE_SYSTEM, EXPERIENCE_PROMPT
         default_out = Path(args.log).parent / "training_experience.md"
@@ -277,7 +286,12 @@ def main():
         log["plot_images"] = generate_window_plots(log, args.log)
         system, template = FINAL_SYSTEM, FINAL_PROMPT
         default_out = Path(args.log).parent / "final_report.md"
+    payload = json.dumps(compact_round(build_payload(log, args.mode)),
+                         ensure_ascii=False, indent=1)
+    print(f"mode={args.mode} model={MODEL_ID} payload={len(payload)} chars",
+          flush=True)
     output = Path(args.output) if args.output else default_out
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     content = chat([
         {"role": "system", "content": system},

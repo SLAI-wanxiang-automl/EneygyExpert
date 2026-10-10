@@ -13,4 +13,11 @@ Local validation (/opt/anaconda3/bin/python):
 - Real Prophet test crashes in the local cmdstanpy native dependency; full backend verification is incomplete.
 - Synthetic examples/quickstart.py completed and exported reports.
 
-Publication excludes local datasets, experiment outputs, copied virtual environments and secrets. Original checkout has corrupt Git objects; publication uses a new source snapshot and preserves upstream attribution. Full legacy history is not recovered.
+Initial publication excluded local datasets, experiment outputs, copied virtual environments and secrets. Original checkout has corrupt Git objects; publication uses a new source snapshot and preserves upstream attribution. Full legacy history is not recovered.
+
+## Documentation, PVOD and LLM API update
+
+- Included the owner-provided dataset/PVOD/station00.csv and documented its loader behavior (28,896 original rows; 15,802 continuous rows after cleaning).
+- Ran the cleaned PVOD data through SeasonalNaiveWindowModel and the full train/validation/test pipeline: 32 test origins, 3,072 test predictions, test MAE 0.372719.
+- Four isolated report tests passed: remote request URL/model/authentication, authenticated model discovery, explicit model without discovery, final prompt containing generated image paths.
+- Remote API behavior was tested with mocked transport; no paid external model invocation was made.
